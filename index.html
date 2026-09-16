@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BA8421 Punch Card Encoder</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root { --ink:#000000; --paper:#FFFFFF; --link:#0000FF; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'IBM Plex Sans', system-ui, sans-serif; background: var(--paper); color: var(--ink); }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 56px 24px 96px; display: flex; flex-direction: column; gap: 36px; }
+  h1 { margin: 0; font-size: 40px; line-height: 1.1; font-weight: 700; }
+  .eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; }
+  p { margin: 0; font-size: 16px; line-height: 1.5; max-width: 640px; }
+  label { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  input[type="text"] {
+    width: 100%; font-family: 'IBM Plex Mono', monospace; font-size: 20px; padding: 14px 16px;
+    border: 1px solid var(--ink); background: var(--paper); color: var(--ink);
+  }
+  input[type="text"]:focus { outline: 2px solid var(--link); outline-offset: 2px; }
+  .hint { font-size: 13px; }
+  button {
+    background: none; border: none; padding: 0; color: var(--link);
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  button:hover { text-decoration: underline; }
+  button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+  .row-between { display: flex; align-items: center; justify-content: space-between; }
+  .section-label { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .card { background: var(--paper); border: 1px solid var(--ink); padding: 28px 0 18px; overflow-x: auto; }
+  .card-inner { display: inline-flex; flex-direction: column; min-width: 100%; padding: 0 28px; }
+  .char-row { display: flex; border-bottom: 2px solid var(--ink); padding-bottom: 6px; margin-bottom: 6px; }
+  .tick-row { display: flex; margin-top: 6px; }
+  .spacer { width: 34px; flex-shrink: 0; }
+  .col-cell { width: 26px; flex-shrink: 0; text-align: center; font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 14px; }
+  .tick-cell { width: 26px; flex-shrink: 0; text-align: center; font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
+  .data-row { display: flex; align-items: center; margin-bottom: 3px; }
+  .row-label { width: 34px; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 12px; text-align: right; padding-right: 8px; }
+  .cell { width: 26px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .hole { width: 15px; height: 15px; background: var(--ink); border-radius: 1px; }
+  .hole-empty { width: 15px; height: 15px; border: 1px solid var(--ink); border-radius: 1px; }
+  .output-box { background: var(--paper); border: 1px solid var(--ink); padding: 16px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 14px; line-height: 1.9; word-break: break-word; }
+  pre.output-box { font-size: 13px; line-height: 1.6; white-space: pre; overflow-x: auto; margin: 0; }
+  .legend { border-top: 1px solid var(--ink); padding-top: 20px; font-size: 13px; line-height: 1.6; }
+  .unsupported { color: var(--link); }
+
+  @media print {
+    body * { visibility: hidden; }
+    #printCard, #printCard * { visibility: visible; }
+    #printCard { position: absolute; top: 0; left: 0; border: none !important; padding: 0 !important; }
+    .spacer, .row-label { width: 18px !important; font-size: 9px !important; padding-right: 4px !important; }
+    .col-cell { width: 11px !important; font-size: 9px !important; }
+    .cell { width: 11px !important; height: 12px !important; }
+    .hole, .hole-empty { width: 7px !important; height: 7px !important; }
+    .tick-row { display: none !important; }
+    @page { size: 80mm auto; margin: 3mm; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div style="display:flex; flex-direction:column; gap:8px;">
+    <div class="eyebrow">BA8421 Encoder</div>
+    <h1>Turn a quote into 6-bit BCD</h1>
+    <p>Type a quote below. It's translated live into the BA8421 code — the 6-bit zone/digit code (B, A, 8, 4, 2, 1) System/360 computers used internally.</p>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    <label for="quote-input">Your quote</label>
+    <input id="quote-input" type="text" maxlength="60" value="RUG WORK IS MADE OF MISTAKES">
+    <div class="hint">Only A–Z, 0–9 and space translate — BA8421 covers letters, digits and space only. Up to 60 characters.</div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:12px;">
+    <div class="row-between">
+      <div class="section-label">Punch grid</div>
+      <button id="print-btn" type="button">Print</button>
+    </div>
+    <div id="printCard" class="card">
+      <div class="card-inner" id="card-inner"></div>
+    </div>
+    <div class="hint">6 rows: zone bits B, A, then digit bits 8, 4, 2, 1.</div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    <div class="row-between">
+      <div class="section-label">Binary, per character</div>
+      <button id="copy-binary-btn" type="button">Copy</button>
+    </div>
+    <div id="binary-output" class="output-box"></div>
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:10px;">
+    <div class="row-between">
+      <div class="section-label">Copy as text (for Illustrator, etc.)</div>
+      <button id="copy-ascii-btn" type="button">Copy</button>
+    </div>
+    <pre id="ascii-output" class="output-box"></pre>
+    <div class="hint">Paste into a monospaced font (Courier New, Consolas, IBM Plex Mono) so the columns stay aligned.</div>
+  </div>
+
+  <div class="legend">
+    <strong>BA8421</strong> is the compressed zone/digit code IBM's System/360 stored internally: zone bits <strong>B, A</strong> mark which letter group a character falls in (A–I, J–R, S–Z), and digit bits <strong>8, 4, 2, 1</strong> give its position within that group, in plain binary. A space is all zeros.
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const rowLabels = ['B', 'A', '8', '4', '2', '1'];
+
+  function letterIndex(ch) { return ch.charCodeAt(0) - 64; } // A=1 ... Z=26
+
+  function toBits4(n) {
+    return [(n >> 3) & 1, (n >> 2) & 1, (n >> 1) & 1, n & 1];
+  }
+
+  function encodeBCD(ch) {
+    if (ch === ' ') return { B: 0, A: 0, bits: [0, 0, 0, 0] };
+    if (ch >= 'A' && ch <= 'Z') {
+      const idx = letterIndex(ch);
+      let B, A, d;
+      if (idx <= 9) { B = 1; A = 1; d = idx; }
+      else if (idx <= 18) { B = 1; A = 0; d = idx - 9; }
+      else { B = 0; A = 1; d = idx - 18 + 1; }
+      return { B, A, bits: toBits4(d) };
+    }
+    if (ch >= '0' && ch <= '9') {
+      return { B: 0, A: 0, bits: toBits4(Number(ch)) };
+    }
+    return null; // unsupported
+  }
+
+  function build(text) {
+    const chars = text.split('');
+    const perChar = chars.map(encodeBCD);
+    const rows = rowLabels.map((label, rIdx) => ({
+      label,
+      cells: perChar.map((code) => {
+        if (!code) return { filled: false };
+        const val = rIdx === 0 ? code.B : rIdx === 1 ? code.A : code.bits[rIdx - 2];
+        return { filled: val === 1 };
+      })
+    }));
+    const columns = chars.map((ch, i) => {
+      const unsupported = ch !== ' ' && perChar[i] === null;
+      return {
+        display: ch === ' ' ? '\u00B7' : ch,
+        title: unsupported ? 'Not supported in BA8421 (letters, digits, space only)' : ch,
+        unsupported,
+        tick: (i + 1) % 5 === 0 ? String(i + 1) : ''
+      };
+    });
+    const binaryParts = chars.map((ch, i) => {
+      const code = perChar[i];
+      if (ch === ' ') return '(space)=000000';
+      if (!code) return ch + '=??????';
+      const bits = [code.B, code.A, ...code.bits].join('');
+      return ch + '=' + bits;
+    });
+    return { rows, columns, binaryOutput: binaryParts.join('  ') };
+  }
+
+  function buildAsciiGrid(text, built) {
+    const lines = ['TEXT  ' + text];
+    built.rows.forEach((row) => {
+      const label = row.label.padStart(3, ' ');
+      const line = row.cells.map((c) => (c.filled ? 'X' : '.')).join('');
+      lines.push(label + '  ' + line);
+    });
+    return lines.join('\n');
+  }
+
+  function el(tag, className, text) {
+    const e = document.createElement('div');
+    e.className = className;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function render() {
+    const quote = quoteInput.value.toUpperCase().slice(0, 60);
+    if (quoteInput.value !== quote) quoteInput.value = quote;
+
+    const built = build(quote);
+    const cardInner = document.getElementById('card-inner');
+    cardInner.innerHTML = '';
+
+    // printed text row
+    const charRow = el('div', 'char-row');
+    charRow.appendChild(el('div', 'spacer'));
+    built.columns.forEach((col) => {
+      const cell = el('div', 'col-cell', col.display);
+      cell.title = col.title;
+      cell.style.color = col.unsupported ? '#0000FF' : '#000000';
+      charRow.appendChild(cell);
+    });
+    cardInner.appendChild(charRow);
+
+    // data rows
+    built.rows.forEach((row) => {
+      const dataRow = el('div', 'data-row');
+      dataRow.appendChild(el('div', 'row-label', row.label));
+      row.cells.forEach((c) => {
+        const cellWrap = el('div', 'cell');
+        cellWrap.appendChild(el('div', c.filled ? 'hole' : 'hole-empty'));
+        dataRow.appendChild(cellWrap);
+      });
+      cardInner.appendChild(dataRow);
+    });
+
+    // tick row
+    const tickRow = el('div', 'tick-row');
+    tickRow.appendChild(el('div', 'spacer'));
+    built.columns.forEach((col) => {
+      tickRow.appendChild(el('div', 'tick-cell', col.tick));
+    });
+    cardInner.appendChild(tickRow);
+
+    document.getElementById('binary-output').textContent = built.binaryOutput;
+    document.getElementById('ascii-output').textContent = buildAsciiGrid(quote, built);
+  }
+
+  function flashCopied(btn) {
+    const original = btn.textContent;
+    btn.textContent = 'Copied';
+    setTimeout(() => { btn.textContent = original; }, 1500);
+  }
+
+  function copy(text, btn) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    flashCopied(btn);
+  }
+
+  const quoteInput = document.getElementById('quote-input');
+  quoteInput.addEventListener('input', render);
+
+  document.getElementById('print-btn').addEventListener('click', () => window.print());
+  document.getElementById('copy-binary-btn').addEventListener('click', (e) =>
+    copy(document.getElementById('binary-output').textContent, e.currentTarget));
+  document.getElementById('copy-ascii-btn').addEventListener('click', (e) =>
+    copy(document.getElementById('ascii-output').textContent, e.currentTarget));
+
+  render();
+})();
+</script>
+</body>
+</html>
